@@ -24,27 +24,14 @@ class Documents:
     self.index()
   
   def load(self) -> None:
-    """
-    Loads the documents from the sources and chunks the HTML content.
-    """
     print("Loading documents...")
-
     for source in self.sources:
       elements = partition_html(url=source["url"])
       chunks = chunk_by_title(elements)
       for chunk in chunks:
-        self.docs.append(
-          {
-            "title": source["title"],
-            "text": str(chunk),
-            "url": source["url"],
-          }
-        )
+        self.docs.append({ "title": source["title"], "text": str(chunk), "url": source["url"]})
   
   def embed(self) -> None:
-    """
-    Embeds the documents using the Cohere API.
-    """
     print("Embedding documents...")
 
     batch_size = 90
