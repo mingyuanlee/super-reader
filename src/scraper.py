@@ -1,12 +1,15 @@
 from collections import deque
+import time
 import requests
 from bs4 import BeautifulSoup
+import threading
 
 class Scraper:
   def __init__(self, bootstrap_urls: list[str], max_depth: int = 3):
     self.bootstrap_urls = bootstrap_urls
     self.all_urls = []
     self.max_depth = max_depth
+    self.batch_size = 30
 
   # Do BFS to get all internal urls
   def bootstrap(self):
@@ -15,30 +18,54 @@ class Scraper:
     depth = 0
     while queue and depth <= self.max_depth:
       size = len(queue)
-      for i in range(size):
-        print(i)
-        url = queue.popleft()
-        internal_links = self.get_internal_links(url)
-        for link in internal_links:
-          if link not in visited:
-            visited.add(link)
-            queue.append(link)
-            self.all_urls.append(link)
+      # TODO: is result list thread safe?
+      result_list = []
+      
+
+      for i in range(0, size, self.batch_size):
+        print("batch", i, "start")
+        threads = []
+        batch_urls = [queue.popleft() for _ in range(min(self.batch_size, len(queue)))]
+        for url in batch_urls:
+          thread = threading.Thread(target=self.get_internal_links, args=(url, result_list))
+          threads.append(thread)
+          thread.start()
+        j = 0
+        for thread in threads:
+          j += 1
+          thread.join()
+        time.sleep(1)
+        print("batch", i, "end: ", len(result_list))
+      
+      internal_links = set()
+      for result in result_list:
+        internal_links.update(result)
+      internal_links = internal_links.difference(visited)
+      queue.extend(internal_links)
+      self.all_urls.extend(internal_links)
       depth += 1
-      print(f"Depth {depth} done: {queue}")
+      print(f"Depth {depth} done: {len(queue)}")
     print(self.all_urls)
 
-  def get_internal_links(self, url: str) -> list[str]:
-    html = requests.get(url).text
-    soup = BeautifulSoup(html, "lxml")
-    a_tags = set(soup.html.body.findAll("a"))
-    internal_links = []
-    for a_tag in a_tags:
-      link = a_tag.get("href")
-      if link.startswith("http") or link.startswith("#"):
-        continue
-      internal_links.append(url + "/" + link)
-    return internal_links
+  def get_internal_links(self, url: str, result_list: list[list[str]]) -> None:
+    try:
+      # print("internal link 1")
+      html = requests.get(url, timeout=10).text
+      # print("internal link 2")
+      soup = BeautifulSoup(html, "lxml")
+      # print("internal link 3")
+      a_tags = set(soup.html.body.findAll("a"))
+      # print("internal link:", len(a_tags))
+      internal_links = []
+      for a_tag in a_tags:
+        # print("internal link:", a_tag)
+        link = a_tag.get("href")
+        if link.startswith("http") or link.startswith("#"):
+          continue
+        internal_links.append(url + "/" + link)
+      result_list.append(internal_links)
+    except Exception as e:
+      print(f"An error occurred: {e}")
   
   def test(self):
     # print(len(self.get_internal_links("https://docs.llamaindex.ai/en/stable")))
