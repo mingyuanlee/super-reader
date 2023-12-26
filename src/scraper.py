@@ -8,7 +8,7 @@ import asyncio
 from urllib.parse import urljoin
 
 class Scraper:
-  def __init__(self, bootstrap_urls: list[str], max_depth: int = 3):
+  def __init__(self, bootstrap_urls: list[str], max_depth: int = 2):
     self.bootstrap_urls = bootstrap_urls
     self.all_urls = []
     self.max_depth = max_depth
@@ -23,23 +23,10 @@ class Scraper:
       size = len(queue)
       # TODO: is result list thread safe?
       result_list = []
-      
-
       for i in range(0, size, self.batch_size):
-        print("batch", i, "start")
-        threads = []
         batch_urls = [queue.popleft() for _ in range(min(self.batch_size, len(queue)))]
-        for url in batch_urls:
-          thread = threading.Thread(target=self.get_internal_links, args=(url, result_list))
-          threads.append(thread)
-          thread.start()
-        j = 0
-        for thread in threads:
-          j += 1
-          thread.join()
+        self.batch_get_internal_links(batch_urls, result_list)
         time.sleep(0.2)
-        print("batch", i, "end: ", len(result_list))
-      
       internal_links = set()
       for result in result_list:
         internal_links.update(result)
@@ -47,7 +34,7 @@ class Scraper:
       queue.extend(internal_links)
       self.all_urls.extend(internal_links)
       depth += 1
-      print(f"Depth {depth} done: {len(queue)}")
+      print(f"Depth {depth} done: {len(internal_links)}")
     print(self.all_urls)
 
   async def fetch_url(self, session, url: str):
@@ -84,7 +71,7 @@ class Scraper:
     except Exception as e:
       print(f"An error occurred: {e}")
 
-  def batch_get_internal_links(self, base_url: str, urls: list[str], result_list: list[set[str]]) -> None:
+  def batch_get_internal_links(self, urls: list[str], result_list: list[set[str]]) -> None:
     start = time.time()
     url_to_text = asyncio.run(self.batch_fetch_url(urls))
     # TODO: is results thread safe?
@@ -100,38 +87,15 @@ class Scraper:
     result_list.append(results)
     end = time.time()
     print(f"batch done: {end - start}s", list(results)[:50], len(results))
-    
-
-
-
-    
-  def get_internal_links(self, url: str, result_list: list[list[str]]) -> None:
-    try:
-      # print("internal link 1")
-      html = requests.get(url, timeout=10).text
-      # print("internal link 2")
-      soup = BeautifulSoup(html, "lxml")
-      # print("internal link 3")
-      a_tags = set(soup.html.body.findAll("a"))
-      # print("internal link:", len(a_tags))
-      internal_links = []
-      for a_tag in a_tags:
-        # print("internal link:", a_tag)
-        link = a_tag.get("href")
-        if link.startswith("http") or link.startswith("#"):
-          continue
-        internal_links.append(url + "/" + link)
-      result_list.append(internal_links)
-    except Exception as e:
-      print(f"An error occurred: {e}")
   
-  def test(self):
-    res = []
-    self.get_internal_links("https://docs.llamaindex.ai/en/stable/", res)
-    print(res[0][:30])
-    self.batch_get_internal_links("https://docs.llamaindex.ai/en/stable/", res[0][:30], [])
+  def run(self):
+    self.bootstrap()
+    while True:
+      cmd = input("Enter a command: ")
+      if cmd == "quit":
+        break
 
 
 if __name__ == "__main__":
   scraper = Scraper(bootstrap_urls=["https://docs.llamaindex.ai/en/stable/"], max_depth=3)
-  scraper.test()
+  scraper.run()
