@@ -1,12 +1,18 @@
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
-base_url = "https://docs.llamaindex.ai/en/stable/module_guides/deploying/agents/modules.html"
-relative_url = "/../../../api/llama_index.node_parser.MetadataAwareTextSplitter.html"
+# Base URL of the website
+base_url = "https://example.com/dir1/dir2/dir3/"
 
-# Remove the leading slash from the relative URL if it exists
-if relative_url.startswith("/"):
-  relative_url = relative_url[1:]
+# Relative paths
+relative_path1 = "../ab"
+relative_path2 = "/../../ab"
+relative_path3 = "/ab"
 
-absolute_url = urljoin(base_url, relative_url)
+# Combine to form absolute URLs
+absolute_url1 = urljoin(base_url, relative_path1)
+absolute_url2 = urljoin(base_url, relative_path2)
+absolute_url3 = urljoin(base_url, relative_path3)
 
-print(absolute_url)
+print(absolute_url1)  # Output will be based on the relative path from the base URL
+print(absolute_url2)  # Output: https://example.com/ab
+print(absolute_url3)  # Output: https://example.com/ab
