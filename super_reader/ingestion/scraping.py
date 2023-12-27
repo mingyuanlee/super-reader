@@ -1,5 +1,6 @@
 from collections import deque
 import json
+from pathlib import Path
 import time
 import requests
 from bs4 import BeautifulSoup
@@ -8,15 +9,29 @@ import aiohttp
 import asyncio
 from urllib.parse import urljoin
 
+from super_reader.utils.file import export_to_json, file_name_to_url, url_to_file_name
+
 class Scraping:
-  def __init__(self, bootstrap_urls: list[str], max_depth: int = 2, batch_size: int = 50):
+  def __init__(
+    self, 
+    bootstrap_urls: list[str], 
+    max_depth: int = 2, 
+    batch_size: int = 50, 
+    base_dir = Path("data"),
+  ):
     self.bootstrap_urls = bootstrap_urls
     self.all_urls = []
     self.max_depth = max_depth
-    self.batch_size = 50
+    self.batch_size = batch_size
+    self.base_dir = base_dir
+    self.webpages_dir = base_dir / "webpages"
+    self.htmls_dir = self.webpages_dir / "htmls"
+
+    # create data folder structure
+    self.htmls_dir.mkdir(parents=True, exist_ok=True)
 
   # Do BFS to get all internal urls
-  def bootstrap(self):
+  def add_web_docs(self):
     queue = deque(self.bootstrap_urls)
     visited = set()
     depth = 0
@@ -25,9 +40,8 @@ class Scraping:
       # TODO: is result list thread safe?
       result_list = []
       for i in range(0, size, self.batch_size):
-        print(f"Batch {i} to {i + self.batch_size}, total {size}...")
         batch_urls = [queue.popleft() for _ in range(min(self.batch_size, len(queue)))]
-        self.batch_get_internal_links(batch_urls, result_list)
+        self.batch_get_internal_links(i // self.batch_size, batch_urls, result_list)
         time.sleep(0.2)
       internal_links = set()
       for result in result_list:
@@ -37,8 +51,38 @@ class Scraping:
       queue.extend(internal_links)
       self.all_urls.extend(internal_links)
       depth += 1
-      print(f"Depth {depth} done: {len(internal_links)}")
-    print(self.all_urls)
+      print(f"Depth {depth} done: {len(internal_links)} urls added.")
+      print("-------------------------------")
+    self.all_urls = sorted(self.all_urls)
+    export_to_json(self.webpages_dir / "urls.json", self.all_urls)
+
+  def sync_web_docs(self):
+    # TODO: here we assume urls.json exists
+    with open(self.webpages_dir / 'urls.json', 'r') as file:
+      urls = json.load(file)
+    missing_html_urls = []
+    url_set = set(urls)
+    # Download if no matching html file
+    for url in url_set:
+      html_file = self.htmls_dir / f"{url_to_file_name(url)}.html"
+      if not html_file.exists():
+        missing_html_urls.append(url)
+    # Delete if no matching url in the urls.json
+    delete_count = 0
+    for html_file in self.htmls_dir.iterdir():
+      if html_file.is_file():
+        url_from_file = file_name_to_url(html_file.stem)
+        if url_from_file not in url_set:
+          html_file.unlink()
+          delete_count += 1
+    # Batch download
+    for i in range(0, len(missing_html_urls), self.batch_size):
+      batch_urls = missing_html_urls[i : min(i + self.batch_size, len(missing_html_urls))]
+      url_to_text = asyncio.run(self.batch_fetch_url(batch_urls))
+      # save as html files
+      self.save_as_html_files(url_to_text)
+    print(missing_html_urls)
+    print(f"Finish syncing. Downloaded {len(missing_html_urls)} html files. Deleted {delete_count} unused files.")
 
   async def fetch_url(self, session, url: str):
     try:
@@ -72,12 +116,16 @@ class Scraping:
     except Exception as e:
       print(f"An error occurred: {e}")
 
-  def batch_get_internal_links(self, urls: list[str], result_list: list[set[str]]) -> None:
+  def batch_get_internal_links(self, batch_id: int, urls: list[str], result_list: list[set[str]]) -> None:
+    print(f"Batch {batch_id} started...")
     start = time.time()
     url_to_text = asyncio.run(self.batch_fetch_url(urls))
     # TODO: is results thread safe?
     results = []
     threads = []
+    # save as html files
+    self.save_as_html_files(url_to_text)
+    # concurrently parse html
     for url, text in url_to_text.items():
       thread = threading.Thread(target=self.parse_html, args=(text, results, url))
       threads.append(thread)
@@ -87,49 +135,10 @@ class Scraping:
     results = set(results)
     result_list.append(results)
     end = time.time()
-    print(f"batch done: {end - start}s", list(results)[:50], len(results))
-
-  def export_to_json(self, file_name):
-    with open(file_name, 'w') as file:
-      json.dump(self.all_urls, file, indent=2)
-
-  def run(self):
-    while True:
-      cmd = input("Enter a command: ")
-      if cmd == "quit":
-        break
-      elif cmd == "bootstrap":
-        self.bootstrap()
-      elif cmd == "export":
-        self.export_to_json("data/urls.json")
-      elif cmd == "count":
-        print(len(self.all_urls))
-      elif cmd == "sort":
-        with open("data/urls.json", 'r') as file:
-          data = json.load(file)
-          sorted_data = sorted(data)
-
-        with open("data/urls.json", 'w') as file:
-          json.dump(sorted_data, file, indent=2)
+    print(f"Batch done: {end - start:.2f}s", f"{len(results)} urls found.")
         
-
-async def test():
-  scraper = Scraper(bootstrap_urls=["https://docs.eigenlayer.xyz/"], max_depth=2)
-  res = await scraper.batch_fetch_url(["https://docs.eigenlayer.xyz/avs-guides/avs-developer-guide"])
-  html = res["https://docs.eigenlayer.xyz/avs-guides/avs-developer-guide"]
-  soup = BeautifulSoup(html, "lxml")
-  a_tags = set(soup.html.body.findAll("a"))
-  for tag in a_tags:
-    print(tag.get("href"))
-  results = []
-  scraper.parse_html(html, results, "https://docs.eigenlayer.xyz/avs-guides/avs-developer-guide")
-  print("------------------")
-  for a in results:
-    print(a)
-
-if __name__ == "__main__":
-  # scraper = Scraper(bootstrap_urls=["https://docs.llamaindex.ai/en/stable/"], max_depth=3)
-  scraper = Scraper(bootstrap_urls=["https://docs.eigenlayer.xyz/"], max_depth=2)
-  scraper.run()
-
-  # asyncio.run(test())
+  def save_as_html_files(self, url_to_text: dict[str, str]):
+    for url, text in url_to_text.items():
+      file_name = f"{url_to_file_name(url)}.html"
+      with open(self.htmls_dir / file_name, "w") as file:
+        file.write(text)

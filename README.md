@@ -35,3 +35,8 @@ Notes:
     - ...
 - pdfs
   - xxx.pdf
+
+To run:
+```
+python3 -m super_reader.main
+```
