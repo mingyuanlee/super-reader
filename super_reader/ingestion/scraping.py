@@ -9,6 +9,7 @@ import asyncio
 from urllib.parse import urljoin
 
 from super_reader.utils.file import export_to_json, file_name_to_url, url_to_file_name
+from super_reader.utils.indexing import process_html
 
 class Scraping:
   def __init__(
@@ -78,7 +79,7 @@ class Scraping:
       batch_urls = missing_html_urls[i : min(i + self.batch_size, len(missing_html_urls))]
       url_to_text = asyncio.run(self.batch_fetch_url(batch_urls))
       # save as html files
-      self.save_as_html_files(url_to_text)
+      self.save_as_files(url_to_text)
     print(f"Finish syncing. Downloaded {len(missing_html_urls)} html files. Deleted {delete_count} unused files.")
 
   async def fetch_url(self, session, url: str):
@@ -121,7 +122,7 @@ class Scraping:
     results = []
     threads = []
     # save as html files
-    self.save_as_html_files(url_to_text)
+    self.save_as_files(url_to_text)
     # concurrently parse html
     for url, text in url_to_text.items():
       thread = threading.Thread(target=self.parse_html, args=(text, results, url))
@@ -134,8 +135,8 @@ class Scraping:
     end = time.time()
     print(f"Batch done: {end - start:.2f}s", f"{len(results)} urls found.")
         
-  def save_as_html_files(self, url_to_text: dict[str, str]):
+  def save_as_files(self, url_to_text: dict[str, str]):
     for url, text in url_to_text.items():
-      file_name = f"{url_to_file_name(url)}.html"
-      with open(self.htmls_dir / file_name, "w") as file:
-        file.write(text)
+      partitioned_text = process_html(text)
+      file_name = f"{url_to_file_name(url)}.json"
+      export_to_json(self.htmls_dir / file_name, partitioned_text)
