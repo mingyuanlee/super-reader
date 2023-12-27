@@ -31,6 +31,7 @@ class Scraping:
     self.htmls_dir.mkdir(parents=True, exist_ok=True)
 
   # Do BFS to get all internal urls
+  # Note that the last depth's urls don't have corresponding html files, need to call sync
   def add_web_docs(self):
     queue = deque(self.bootstrap_urls)
     visited = set()
@@ -81,7 +82,6 @@ class Scraping:
       url_to_text = asyncio.run(self.batch_fetch_url(batch_urls))
       # save as html files
       self.save_as_html_files(url_to_text)
-    print(missing_html_urls)
     print(f"Finish syncing. Downloaded {len(missing_html_urls)} html files. Deleted {delete_count} unused files.")
 
   async def fetch_url(self, session, url: str):

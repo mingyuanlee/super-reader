@@ -14,7 +14,6 @@ from super_reader.ingestion.scraping import Scraping
 # scraper = Scraper(bootstrap_urls=["https://docs.llamaindex.ai/en/stable/"], max_depth=3)
 scraping = Scraping(bootstrap_urls=["https://docs.eigenlayer.xyz/"], max_depth=2)
 # scraping.add_web_docs()
-# scraping.sync_web_docs()
-print(len(list(scraping.htmls_dir.iterdir())))
+scraping.sync_web_docs()
 
 # asyncio.run(test())
