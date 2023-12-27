@@ -2,7 +2,6 @@ from collections import deque
 import json
 from pathlib import Path
 import time
-import requests
 from bs4 import BeautifulSoup
 import threading
 import aiohttp
@@ -14,12 +13,10 @@ from super_reader.utils.file import export_to_json, file_name_to_url, url_to_fil
 class Scraping:
   def __init__(
     self, 
-    bootstrap_urls: list[str], 
     max_depth: int = 2, 
     batch_size: int = 50, 
     base_dir = Path("data"),
   ):
-    self.bootstrap_urls = bootstrap_urls
     self.all_urls = []
     self.max_depth = max_depth
     self.batch_size = batch_size
@@ -32,8 +29,8 @@ class Scraping:
 
   # Do BFS to get all internal urls
   # Note that the last depth's urls don't have corresponding html files, need to call sync
-  def add_web_docs(self):
-    queue = deque(self.bootstrap_urls)
+  def add_web_docs(self, bootstrap_urls: list[str]):
+    queue = deque(bootstrap_urls)
     visited = set()
     depth = 0
     while queue and depth <= self.max_depth:

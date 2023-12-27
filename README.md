@@ -38,5 +38,5 @@ Notes:
 
 To run:
 ```
-python3 -m super_reader.main
+python3 -m super_reader.cli add-web-docs -urls https://docs.eigenlayer.xyz/
 ```
