@@ -8,8 +8,8 @@ import aiohttp
 import asyncio
 from urllib.parse import urljoin
 
-class Scraper:
-  def __init__(self, bootstrap_urls: list[str], max_depth: int = 2):
+class Scraping:
+  def __init__(self, bootstrap_urls: list[str], max_depth: int = 2, batch_size: int = 50):
     self.bootstrap_urls = bootstrap_urls
     self.all_urls = []
     self.max_depth = max_depth
