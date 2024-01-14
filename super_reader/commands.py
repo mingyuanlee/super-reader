@@ -28,3 +28,9 @@ def add_web_docs(ctx: click.Context, reader: str, urls: str) -> None:
 @click.pass_context
 def sync_web_docs(ctx: click.Context, reader: str) -> None:
   ctx.obj.sync_web_docs(reader)
+
+# @click.command(help="sync web docs")
+# @click.option('--reader', '-r', help="Reader name")
+# @click.pass_context
+# def start_chat(ctx: click.Context, reader: str) -> None:
+#   ctx.obj.sync_web_docs(reader)

@@ -18,6 +18,7 @@ pip install -r requirements.txt
 - `super-reader add-web-docs --reader <reader-name> --urls <url>`
 - `super-reader sync-web-docs --reader <reader-name>`
 - `super-reader list-reader`
+- `super-reader build-index --reader <reader-name>`
 - `super-reader start-chat --reader <reader-name>`
 
 ### Abstraction

@@ -26,8 +26,8 @@ class App:
     self._repos = {}
     self._base_dir = Path(base_dir)
 
-    self.load_readers()
-    self.load_pipelines()
+    # self.load_readers()
+    # self.load_pipelines()
     # self.load_vector_store_configs()
 
     self.curr_reader = self._readers["EigenLayer"]
@@ -50,16 +50,10 @@ class App:
 
 
 
-  
-  def get_repo_or_create(self, repo_name: str) -> Repo:
-    if repo_name not in self._repos:
-      self._repos[repo_name] = Repo(repo_name, self._base_dir)
-    return self._repos[repo_name]
-
-  def load_readers(self) -> None:
-    url = "data"
-    reader_config = ReaderConfig(3, 50, Path(url))
-    self._readers["EigenLayer"] = Reader("EigenLayer", reader_config)
+  # def load_readers(self) -> None:
+  #   url = "data"
+  #   reader_config = ReaderConfig(3, 50, Path(url))
+  #   self._readers["EigenLayer"] = Reader("EigenLayer", reader_config)
 
   # def load_vector_store_configs(self) -> None:
   #   self._vector_store_configs = {}
