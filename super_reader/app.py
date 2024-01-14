@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import List
 from llama_index import VectorStoreIndex
 from llama_index.embeddings import OpenAIEmbedding
 from llama_index.text_splitter import SentenceSplitter
@@ -10,22 +11,51 @@ from llama_index.vector_stores import PineconeVectorStore
 import pinecone
 
 import dotenv
+from super_reader.ingestion.scraping_service import ScrapingConfig
 
-from super_reader.reader.reader import Reader, ReaderConfig
+from super_reader.reader.reader import Reader
+from super_reader.reader.repo import Repo
 
 
 dotenv.load_dotenv()
 
 class App:
-  def __init__(self) -> None:
+  def __init__(self, base_dir: str) -> None:
     self._readers = {}
     self._pipelines = {}
+    self._repos = {}
+    self._base_dir = Path(base_dir)
 
     self.load_readers()
     self.load_pipelines()
     # self.load_vector_store_configs()
+
     self.curr_reader = self._readers["EigenLayer"]
+
+  def list_pipelines(self) -> List[str]:
+    return list(self._pipelines.keys())
   
+  def create_reader(self, name: str, pipeline_name: str, max_depth: int, batch_size: int):
+    config = ScrapingConfig(max_depth, batch_size)
+    pipeline = self._pipelines[pipeline_name]
+    self._readers[name] = Reader(name, pipeline, config, self._base_dir)
+  
+  def add_web_docs(self, reader_name: str, urls: List[str]):
+    reader = self._readers[reader_name]
+    reader.add_web_docs(urls)
+  
+  def sync_web_docs(self, reader_name: str):
+    reader = self._readers[reader_name]
+    reader.sync_web_docs()
+
+
+
+  
+  def get_repo_or_create(self, repo_name: str) -> Repo:
+    if repo_name not in self._repos:
+      self._repos[repo_name] = Repo(repo_name, self._base_dir)
+    return self._repos[repo_name]
+
   def load_readers(self) -> None:
     url = "data"
     reader_config = ReaderConfig(3, 50, Path(url))

@@ -11,36 +11,29 @@ from urllib.parse import urljoin
 from super_reader.utils.file import export_to_json, file_name_to_url, url_to_file_name
 from super_reader.utils.indexing import process_html
 
-class Scraping:
-  def __init__(
-    self, 
-    max_depth: int = 2, 
-    batch_size: int = 50, 
-    base_dir = Path("data"),
-  ):
-    self.all_urls = []
+class ScrapingConfig:
+  def __init__(self, max_depth, batch_size):
     self.max_depth = max_depth
     self.batch_size = batch_size
-    self.base_dir = base_dir
-    self.webpages_dir = base_dir / "webpages"
-    self.htmls_dir = self.webpages_dir / "htmls"
 
-    # create data folder structure
-    self.htmls_dir.mkdir(parents=True, exist_ok=True)
-
+class ScrapingService:
+  def __init__(self, config: ScrapingConfig):
+    self._config = config
+    
   # Do BFS to get all internal urls
   # Note that the last depth's urls don't have corresponding html files, need to call sync
-  def add_web_docs(self, bootstrap_urls: list[str]):
+  def add_web_docs(self, bootstrap_urls: list[str], webpages_dir: Path):
+    all_urls = []
     queue = deque(bootstrap_urls)
     visited = set()
     depth = 0
-    while queue and depth <= self.max_depth:
+    while queue and depth <= self._config.max_depth:
       size = len(queue)
       # TODO: is result list thread safe?
       result_list = []
-      for i in range(0, size, self.batch_size):
-        batch_urls = [queue.popleft() for _ in range(min(self.batch_size, len(queue)))]
-        self.batch_get_internal_links(i // self.batch_size, batch_urls, result_list)
+      for i in range(0, size, self._config.batch_size):
+        batch_urls = [queue.popleft() for _ in range(min(self._config.batch_size, len(queue)))]
+        self.batch_get_internal_links(i // self._config.batch_size, batch_urls, result_list)
         time.sleep(0.2)
       internal_links = set()
       for result in result_list:
@@ -48,14 +41,15 @@ class Scraping:
       internal_links = internal_links.difference(visited)
       visited.update(internal_links)
       queue.extend(internal_links)
-      self.all_urls.extend(internal_links)
+      all_urls.extend(internal_links)
       depth += 1
       print(f"Depth {depth} done: {len(internal_links)} urls added.")
       print("-------------------------------")
-    self.all_urls = sorted(self.all_urls)
-    export_to_json(self.webpages_dir / "urls.json", self.all_urls)
+    all_urls = sorted(all_urls)
+    
+    export_to_json(webpages_dir / "urls.json", all_urls)
 
-  def sync_web_docs(self):
+  def sync_web_docs(self, htmls_dir: Path):
     # TODO: here we assume urls.json exists
     with open(self.webpages_dir / 'urls.json', 'r') as file:
       urls = json.load(file)
@@ -63,20 +57,20 @@ class Scraping:
     url_set = set(urls)
     # Download if no matching html file
     for url in url_set:
-      html_file = self.htmls_dir / f"{url_to_file_name(url)}.html"
+      html_file = htmls_dir / f"{url_to_file_name(url)}.html"
       if not html_file.exists():
         missing_html_urls.append(url)
     # Delete if no matching url in the urls.json
     delete_count = 0
-    for html_file in self.htmls_dir.iterdir():
+    for html_file in htmls_dir.iterdir():
       if html_file.is_file():
         url_from_file = file_name_to_url(html_file.stem)
         if url_from_file not in url_set:
           html_file.unlink()
           delete_count += 1
     # Batch download
-    for i in range(0, len(missing_html_urls), self.batch_size):
-      batch_urls = missing_html_urls[i : min(i + self.batch_size, len(missing_html_urls))]
+    for i in range(0, len(missing_html_urls), self._config.batch_size):
+      batch_urls = missing_html_urls[i : min(i + self._config.batch_size, len(missing_html_urls))]
       url_to_text = asyncio.run(self.batch_fetch_url(batch_urls))
       # save as html files
       self.save_as_files(url_to_text)
@@ -89,7 +83,7 @@ class Scraping:
     except Exception as e:
       print(f"Error fetching {url}: {e}")
       return None
-  
+
   async def batch_fetch_url(self, urls: list[str]):
     async with aiohttp.ClientSession() as session:
       tasks = [self.fetch_url(session, url) for url in urls]
@@ -134,7 +128,7 @@ class Scraping:
     result_list.append(results)
     end = time.time()
     print(f"Batch done: {end - start:.2f}s", f"{len(results)} urls found.")
-        
+  
   def save_as_files(self, url_to_text: dict[str, str]):
     for url, text in url_to_text.items():
       partitioned_text = process_html(text)

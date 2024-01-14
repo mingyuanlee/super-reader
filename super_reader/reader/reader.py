@@ -1,26 +1,35 @@
 import json
+from pathlib import Path
+from typing import List
 from llama_index import Document
-from super_reader.ingestion.scraping import Scraping
+from super_reader.ingestion.scraping_service import ScrapingConfig, ScrapingService
+from super_reader.pipeline.pipeline import Pipeline
+from super_reader.reader.repo import Repo
 from unstructured.chunking.title import chunk_by_title
 from unstructured.staging.base import dict_to_elements, convert_to_dict
 
-class ReaderConfig:
-  def __init__(self, max_depth, batch_size, base_dir):
-    self.max_depth = max_depth
-    self.batch_size = batch_size 
-    self.base_dir = base_dir
-
 class Reader:
-  def __init__(self, name: str, config: ReaderConfig):
+  def __init__(self, name: str, pipeline: Pipeline, config: ScrapingConfig, base_dir: Path):
     self._name = name
-    self.base_dir = config.base_dir
-    self.webpages_dir = self.base_dir / "webpages"
-    self.htmls_dir = self.webpages_dir / "htmls"
-    self.Scraping = Scraping(config.max_depth, config.batch_size, self.base_dir)
-    self.load_documents()
+    self._pipeline = pipeline
+    self._reader_dir = base_dir / name
+    self._repo = Repo(name, self._reader_dir)
+    self._index = None
+    self._scraping_config = config
+    self._scraping_service = ScrapingService(config)
 
-    self._index_map = {}
+  def get_scraping_config(self) -> ScrapingConfig:
+    return self._scraping_config
+
+  def add_web_docs(self, urls: List[str]):
+    self._scraping_service.add_web_docs(urls, self._repo.get_webpages_dir())
   
+  def sync_web_docs(self):
+    self._scraping_service.sync_web_docs(self._repo.get_htmls_dir())
+
+
+
+
   def load_documents(self):
     self.documents = []
     for html_file in self.htmls_dir.glob("*.json"):

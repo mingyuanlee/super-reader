@@ -1,13 +1,34 @@
-Three components:
-(1) App
-(2) Chatbot
-(3) Documents
+
+### Set up
+
+1. Create virtual environment and install dependencies:
+```
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+2. 
 
 
-make this a cli?
+### Commands
 
-search-urls: get all urls
-bootstrap: get all urls and htmls
+- `super-reader add-pipeline --name <pipeline-name>`: not implemented yet
+- `super-reader list-pipeline`
+- `super-reader create-reader --name <reader-name> --pipeline <pipeline-name> --max-depth <depth> --batch-size <size>`
+- `super-reader add-web-docs --reader <reader-name> --urls <url>`
+- `super-reader sync-web-docs --reader <reader-name>`
+- `super-reader list-reader`
+- `super-reader start-chat --reader <reader-name>`
+
+### Abstraction
+
+- Repo: A set of documents
+- Reader: Each reader has its own topic, repo and an index from these documents. 
+- App: Each app contains a list of readers, a list of pipelines and a list of repos.
+- The design is not good for scaling, but let's use this first
+
+
+### Legacy below:
 
 
 Process:
