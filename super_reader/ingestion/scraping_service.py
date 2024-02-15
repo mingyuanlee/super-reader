@@ -12,17 +12,23 @@ from super_reader.utils.file import export_to_json, file_name_to_url, url_to_fil
 from super_reader.utils.indexing import process_html
 
 class ScrapingConfig:
-  def __init__(self, max_depth, batch_size):
+  def __init__(self, max_depth, batch_size, data_dir: Path):
     self.max_depth = max_depth
     self.batch_size = batch_size
+    self.data_dir = data_dir
 
 class ScrapingService:
   def __init__(self, config: ScrapingConfig):
     self._config = config
+    self.webpages_dir = config.data_dir / "webpages"
+    self.htmls_dir = self.webpages_dir / "htmls"
+
+    self.webpages_dir.mkdir(exist_ok=True)
+    self.htmls_dir.mkdir(exist_ok=True)
     
   # Do BFS to get all internal urls
   # Note that the last depth's urls don't have corresponding html files, need to call sync
-  def add_web_docs(self, bootstrap_urls: list[str], webpages_dir: Path):
+  def add_web_docs(self, bootstrap_urls: list[str]):
     all_urls = []
     queue = deque(bootstrap_urls)
     visited = set()
@@ -43,13 +49,14 @@ class ScrapingService:
       queue.extend(internal_links)
       all_urls.extend(internal_links)
       depth += 1
+      
       print(f"Depth {depth} done: {len(internal_links)} urls added.")
       print("-------------------------------")
     all_urls = sorted(all_urls)
     
-    export_to_json(webpages_dir / "urls.json", all_urls)
+    export_to_json(self.webpages_dir / "urls.json", all_urls)
 
-  def sync_web_docs(self, htmls_dir: Path):
+  def sync_web_docs(self):
     # TODO: here we assume urls.json exists
     with open(self.webpages_dir / 'urls.json', 'r') as file:
       urls = json.load(file)
@@ -57,12 +64,12 @@ class ScrapingService:
     url_set = set(urls)
     # Download if no matching html file
     for url in url_set:
-      html_file = htmls_dir / f"{url_to_file_name(url)}.html"
+      html_file = self.htmls_dir / f"{url_to_file_name(url)}.html"
       if not html_file.exists():
         missing_html_urls.append(url)
     # Delete if no matching url in the urls.json
     delete_count = 0
-    for html_file in htmls_dir.iterdir():
+    for html_file in self.htmls_dir.iterdir():
       if html_file.is_file():
         url_from_file = file_name_to_url(html_file.stem)
         if url_from_file not in url_set:
@@ -88,6 +95,7 @@ class ScrapingService:
     async with aiohttp.ClientSession() as session:
       tasks = [self.fetch_url(session, url) for url in urls]
       results = await asyncio.gather(*tasks)
+      results = [result for result in results if result]
       return dict(results)
   
   def merge_url(self, base_url, relative_url):
